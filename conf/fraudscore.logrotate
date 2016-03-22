@@ -1,0 +1,11 @@
+#
+# /etc/logrotate.d/fraudscore.logrotate
+#
+/tmp/rapache.log {
+        daily
+        size 100k
+        missingok
+        rotate 10
+        compress
+        delaycompress
+}
