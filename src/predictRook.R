@@ -1,6 +1,6 @@
-#!/usr/bin/Rscript
+#!/usr/local/bin/Rscript
 #
-# Test harness for fraudscore web service...can be run standalone without Apache httpd.
+# Test harness for prediction web service...can be run standalone without Apache httpd.
 #
 require(Rook)
 require(rjson)
@@ -11,7 +11,7 @@ require(methods)
 RSourceOnStartup <- function(socure.base)
 {
     # Load model
-    flog.info("[%d] Starting fraudscore web service (socure.base=%s)", Sys.getpid(), socure.base)
+    flog.info("[%d] Starting prediction web service (socure.base=%s)", Sys.getpid(), socure.base)
 
     # Load models
     model.dir <- paste0(socure.base, '/model')
@@ -31,14 +31,14 @@ RSourceOnStartup <- function(socure.base)
 }
     
 
-fraudscore.app <- function(env)
+predict.app <- function(env)
 {
     status = "Error"
     error = "Unspecified"
     name = "Unspecified"
     version = "Unspecified"
     date = "Unspecified"
-    fraudscore = -1
+    score = -1
     request <- Request$new(env)
 
     # Model selection: <base>/<model>/<model.version>
@@ -55,7 +55,6 @@ fraudscore.app <- function(env)
         model <- models[[model.key]]
         if ( ! is.null(model)) {
             
-            # Rule codes
             if (request$post()) {
                 flog.debug("Received request (%s) with POST parameters: %s",
                            request$url(),
@@ -63,24 +62,10 @@ fraudscore.app <- function(env)
 
                 flog.debug("Using model %s, version %s", model$name, model$version)
             
-                # Filter out unused parameters
-                features <- request$POST()[intersect(model$var.names, names(request$POST()))]
-                flog.debug("[%d] Using prediction features: %s", Sys.getpid(), paste(names(features), collapse=','))
-                rc <- data.frame(features, stringsAsFactors=FALSE)
-                
-                flog.debug("Convert 'NA' to real NAs")
-                rc[rc=='NA'] <- NA
-                
-                flog.debug("Adding missing predictors")
-                mis.predictors <- socureutils::"%w/o%"(model$var.names, colnames(rc))
-                rc[, mis.predictors] <- NA
-                
-                flog.debug("Predicting fraudscore")
-                fraudscore <- gbm::predict.gbm(model,
-                                               newdata = rc,
-                                               type = "response",
-                                               n.trees = model$n.trees)
-                
+                variables <- request$POST()
+                flog.debug("[%d] Using prediction features: %s", Sys.getpid(), paste(names(variables), collapse=','))
+                x <- data.frame(lapply(variables, as.numeric))
+                score <-predict(model, newdata = x)
                 status = 'Ok'
                 error = ''
                 name = model$name
@@ -88,7 +73,7 @@ fraudscore.app <- function(env)
                 date = model$date
             }
             else {
-                error =  sprintf("Missing POST parameters: [rulecodes] (%s)", request$url())
+                error =  sprintf("Missing POST parameters: (%s)", request$url())
                 flog.error(error)
             }
         }
@@ -104,12 +89,11 @@ fraudscore.app <- function(env)
     }
 
     # Return result
-    result <- list(fraudscore = fraudscore,
+    result <- list(score = score,
                    status = status,
                    error = error,
                    name = name,
-                   version = version,
-                   date = date)
+                   version = version)
     resultJson = rjson::toJSON(result)
     flog.debug("Request (%s) returns: %s", request$url(), resultJson)
     response <- Response$new()
@@ -124,11 +108,11 @@ fraudscore.app <- function(env)
 # Main
 flog.threshold(DEBUG)
 models <- list()
-RSourceOnStartup(getwd())
+RSourceOnStartup('..')
 
 flog.info("Starting web service")
 R.server <- Rhttpd$new()
-R.server$add(app = fraudscore.app, name = "fraudscore")
+R.server$add(app = predict.app, name = "predict")
 R.server$start(port=8000)
 R.server$print()
 R.server$browse()
@@ -138,27 +122,3 @@ while (TRUE) {
 }
 R.server$stop()
 
-# Predictor
-# =========
-#
-# Delete environment from predictor
-#
-# > ls.str(attr(model$Terms, ".Environment"))
-# > object.size( attr(m$Terms, ".Environment"))
-# > attr(m$Terms, ".Environment") <- NULL
-# > object.size( attr(m$Terms, ".Environment"))
-#
-#
-# Testing
-# =======
-#
-# Create test data:
-#
-# > x <- data.frame(replicate(length(model$var.names), sample(0:1, 10,rep=TRUE)))
-# > names(x) <- model$var.names
-#
-# Predict:
-#
-# > n.trees <- gbm.perf(model$mod, method = "test", plot.it = FALSE)
-# > gbm::predict.gbm(m, newdata=x, type='response', n.trees=n.trees)
-#

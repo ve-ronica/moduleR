@@ -1,5 +1,59 @@
-#Socure Fraudscore Web Service
+# ModuleR Prediction Web Service
 
+## Quickstart
+
+
+## Rook Testing
+A standalone Rook service implementation is provided in
+`fraudscoreRook.R` and can be run without Apache httpd as follows:
+
+1. Copy model file socure\_model\_predictor.rda to this
+directory..it's too big for GitHub.
+
+2. Start webservice and wait for model to be loaded. Current version of
+Rook will only bind to localhost but we can proxy with Apache and
+possibly deploy multiple instances of the web service on different
+ports:
+
+```
+Loading required package: Rook
+Loading required package: rjson
+Loading required package: futile.logger
+INFO [2016-04-08 11:50:17] [45109] Starting prediction web service 
+INFO [2016-04-08 11:50:17] Loading models from directory ../model
+INFO [2016-04-08 11:50:17] [45109] Loaded model test__1 from file ../model/test__1.rds
+INFO [2016-04-08 11:50:17] Starting web service
+starting httpd help server ... done
+DEBUG [2016-04-08 11:50:20] Request for model test, version 1
+DEBUG [2016-04-08 11:50:20] Received request (http://127.0.0.1:8000/custom/predict/test/1?) with POST parameters: x1,x2,x3
+DEBUG [2016-04-08 11:50:20] Using model test, version 1
+DEBUG [2016-04-08 11:50:20] [45109] Using prediction features: x1,x2,x3
+DEBUG [2016-04-08 11:50:20] Request (http://127.0.0.1:8000/custom/predict/test/1?) returns: {"score":{"1":12.9322980080557},"status":"Ok","error":"","name":"test","version":1}
+```
+
+3. Test the application:
+
+```
+$ curl --data 'x1=1&x2=2&x3=3' http://127.0.0.1:8000/custom/predict/test/1
+{"score":{"1":12.9322980080557},"status":"Ok","error":"","name":"test","version":1}
+```
+
+##Adding a New Model
+An R model must be prepared before it can be deployed within the
+fraudscore service. The model object must implement a __predict()__ function as well as have attributes __name__ and __version__ which will be used to identify the model via the webservice REST parameters. The saved RDS model file will be read from the __model__ directory when the service initializes:
+
+```
+> m <- lm(y ~ x1 + x2 + x3)
+> predict(m, newdata=data.frame(x1=1, x2=2, x3=3))
+    1 
+12.93 
+> m$name <- 'test'
+> m$version <- 1
+> saveRDS(m, file="test__1.rds")
+
+```
+
+## Apache Deployment
 The fraudscore web service is implementated as a _Rook_ service and
 deployed under _Apache httpd_ via the _RApache (mod\_R)_ module. Below
 are the steps for deploying the service on _Ubuntu Server_:
@@ -11,7 +65,7 @@ are the steps for deploying the service on _Ubuntu Server_:
         $ sudo apt-get update
         $ sudo apt-get install libapache2-mod-r-base
 
-2. Install _R_ modules _Rook_, _socureutils_, and dependencies.
+2. Install _R_ modules _Rook_, and dependencies.
 
 3. Copy model file `socure_model_predictor.rda` to a local directory.
 
@@ -36,7 +90,7 @@ are the steps for deploying the service on _Ubuntu Server_:
 8. Test _fraudscore_ service via `curl`:
 
         $ curl --data $(cat test.post) http://ec2-54-198-90-184.compute-1.amazonaws.com/fraudscore/g
-        {"fraudscore":0.063879240865568,"status":"Ok","error":""}
+        {"score":0.063879240865568,"status":"Ok","error":""}
 
 9. Test _fraudscore_ service via `test.py`:
 
@@ -71,305 +125,6 @@ health of the system and diagnose issues:
         INFO [2014-06-25 20:40:48] [13291] Loaded model from file /opt/webservice/socure_model_predictor.rda
         INFO [2014-06-25 20:40:48] [13292] Loaded model from file /opt/webservice/socure_model_predictor.rda
 
-
-##Adding a New Model
-###Preparing the Model
-An R model must be prepared before it can be deployed within the
-fraudscore service. The __socureml__ R module includes a function
-``extract_model()`` that performs the preparation. This function strips out elements of the trained model that are not required for
-prediction to reduce the deployed memory footprint. Also, the feature names are normalized to make sure they conform to the feature names
-passed by the EmailAuthscore API. The function is defined [here](https://github.com/Socure/datascience/blob/master/R/socureml/R/extract_model.R)
-The function takes parameters:
-
-* __model__: the model to be prepared.
-* __name__: value of this field is added to the model as a named member ```name```.
-* __version__: value of this field is added to the model as a named member ```version```.
-
-The resulting __predictor__ object must be saved as an RDS object file and added to the __datascience__ GitHub repository under ```R/webservice/model```. By convention this file is named ```<name>__<version>.rds```. Once deployed, the models will be accessible via URL:
-
-``http://<fraudscore_proxy_server>/fraudscore/<name>/<version>``
-
-###Deploying the Model
-#### DEV
-Models are deployed to the development ennvironment using the __Dockerfile__ script as described below.
-
-#### STAGE and PRODUCTION
-Models are copied to the STAGE and PROD servers via __git__ client
-installed on the __RApache__ worker nodes. The clone directories are
-configured to pull from the __stage__ branch of the datascience
-repository so any model or code changes must be merged into this
-branch prior to deployment. Once new models and/or scripts are in
-place, the fraudscore service must be restarted on each node:
-
-
-          $ cd ~/datascience
-          $ git branch
-            master
-          * stage
-          $ git pull
-          $ service apache2 restart
-
-
-##Local Testing
-A standalone Rook service implementation is provided in
-`fraudscoreRook.R` and can be run without Apache httpd as follows:
-
-1. Copy model file socure\_model\_predictor.rda to this
-directory..it's too big for GitHub.
-
-2. Start webservice and wait for model to be loaded. Current version of
-Rook will only bind to localhost but we can proxy with Apache and
-possibly deploy multiple instances of the web service on different
-ports:
-
-          $ ./fraudscoreRook.R 
-          Loading required package: Rook
-          Loading required package: tools
-          Loading required package: methods
-          Loading required package: brew
-          Loading required package: rjson
-          Loading required package: futile.logger
-          NULL
-          INFO [2014-06-10 17:01:18] Loading model socure_model_predictor.rda
-          Warning messages:
-          1: replacing previous import by ‘caret::sensitivity’ when loading ‘socureml’ 
-          2: replacing previous import by ‘caret::specificity’ when loading ‘socureml’ 
-          INFO [2014-06-10 17:01:55] Starting web service
-          starting httpd help server ... done
-          
-          Server started on host 127.0.0.1 and port 8000 . App urls are:
-          
-          http://127.0.0.1:8000/custom/fraudscore
-          
-          Server started on 127.0.0.1:8000
-          [1] fraudscore http://127.0.0.1:8000/custom/fraudscore
-          
-          Call browse() with an index number or name to run an application.
-
-
-3. Test the application:
-
-          $ ./test.py 
-          2014-06-10 16:56:26,013 [MainThread] DEBUG Getting fraudscore for customeruserid 2
-          2014-06-10 16:56:26,076 [MainThread] INFO Starting new HTTP connection (1): 127.0.0.1
-          2014-06-10 16:56:26,268 [MainThread] DEBUG "POST /custom/fraudscore HTTP/1.1" 200 None
-          2014-06-10 16:56:26,303 [MainThread] DEBUG Received response from URL http://127.0.0.1:8000/custom/fraudscore in 0:00:00.193580: {"fraudscore":0.0221298229539805,"error":""}
-          ....
-
-
-##CloudFormation Template
-
-The cloud formation template `fraudscore-cfn.template` will provision
-a fraudscore webservice instance. Parameters to this template include
-the EC2 instance type (default c3.2xlarge), environment (default dev),
-and AMI (default ubuntu-trusty-14.04-amd64-server-20140416.1).
-
-Jenkins r-<env> projects will publish a `webservice.tar.gz` file to S3
-location `s3://mlpipe/<env>/webservice`. This file contains the
-artifacts required to provision the fraudscore service on the
-server. Also, the model implementation will be pulled from
-`s3://mlpipe/<env>/webservice/socure_model_predictor.rda`.
-
-
-
-# DataRobot
-## Testing
-### AuthToken
-The auth token need only be created once. It does not expire and can be used for all subsequent requests to the service.
-
-```Shell
-$ curl -XPOST 'https://beta.datarobot.com/api/v1/api_token' -u justin@socure.me:datarobot4free
-{"api_token": "sDMtVeY2leW7RuzTYlHnmXupWkxh6iCg"}
-
-```
-
-### Prediction
-    $ cat test.json
-    [{
-        "FBVAL.200127": 0,
-        "FCVAL.200127": 0,
-        "FCVAL.200128": 0,
-        "FCvFM.gender": 0,
-        "FCvFM.name": 0,
-        "FCvPI.gender": 0,
-        "FMVAL.200150": 0,
-        "FMVAL.300666": 0,
-        "FMvPI.dob": 0,
-        "FMvPI.gender": 0,
-        "FMvPI.name": 0,
-        "FMvTW.name": 0,
-        "FSVAL.610001": 0,
-        "I113": 0,
-        "I115": 0,
-        "I117": 0,
-        "I119": 0,
-        "I122": 0,
-        "I125": 0,
-        "I127": 0,
-        "I129": 0,
-        "I131": 0,
-        "I133": 0,
-        "I134": 0,
-        "I141": 0,
-        "I142": 0,
-        "I143": 0,
-        "I230": 0,
-        "I233": 0,
-        "I240": 0,
-        "I242": 0,
-        "I243": 0,
-        "I244": 0,
-        "I250": 0,
-        "I260": 0,
-        "PAVAL.200127": 0,
-        "PAVAL.200128": 0,
-        "PAvFM.dob": 0,
-        "PAvFM.name": 0,
-        "PAvPI.companyname": 0,
-        "PAvPI.dob": 0,
-        "PAvPI.name": 0,
-        "PIVAL.200127": 0,
-        "PIVAL.200128": 0,
-        "R101": 0,
-        "R110": 0,
-        "R111": 0,
-        "R115": 0,
-        "TLD": "gmail.com",
-        "TWANL.300001": 0,
-        "TWANL.300002": 0,
-        "TWANL.300003": 0,
-        "TWANL.300004": 0,
-        "TWANL.300005": 0,
-        "TWANL.300006": 0,
-        "TWANL.300007": 0,
-        "TWANL.300008": 0,
-        "TWANL.300009": 0,
-        "TWANL.300010": 0,
-        "TWANL.300011": 0,
-        "TWANL.300012": 0,
-        "TWANL.500002": 0,
-        "TWVAL.200127": 0,
-        "TWvFC.name": 0,
-        "TWvPA.name": 0,
-        "TWvPI.name": 0,
-        "V106": 0,
-        "V110": 0,
-        "YOVAL.200127": 0,
-        "YOVAL.600001": 0,
-        "authScore": 5,
-        "confidence": 0.9,
-        "country": "US",
-        "profilesFoundCount": 0
-    }]
-
-
-    $ APIKEY=sDMtVeY2leW7RuzTYlHnmXupWkxh6iCg
-    $ PROJECTID=554937901331272961736ebc
-    $ MODELID=5549710a602af9008330b84b
-    $ curl -v -u justin@socure.me:$APIKEY -XPOST 'https://beta.datarobot.com/api/v1/$PROJECTID/5549710a602af9008330b84b/predict' -H "Content-Type: application/json" --data @test.json
-    {"status": "Column YOvFB_name is missing", "code": 400, "version": "v1"}
-
-## Dedicated Server
-The host name for your prediction server is 
-
-`socurepred.datarobot.com`
-
-and the datarobot-key for that server is
-
-`a9ce48b8-baa5-4097-8062-75cec2545f5c`
-
-# API POST Parameters
-The following POST parameter types are passed to the fraudscore scoring service from the Socure API:
-
-## Custom Parameters required by datascience
-These parameters are always passed by the API:
-
-| Name | Description |
-|------|-------------|
-|TLD | Top level email domain |
-|authScore |  |
-|confidence |  |
-|country | ISO 3166-1 two character country code |
-|profilesFoundCount | Number of social profiles found |
-|transaction_id | Audit transaction identifier |
-
-## Rule Codes
-These are passed if present for the profile and have the following format:
-
-__[5 uppercase alpha].[6 numeric]__
-
-### Examples
-```
-EMVAL.100126
-EMVAL.200125
-FBVAL.200127
-FCVAL.100117
-FMVAL.100126
-FMVAL.100150
-FMVAL.200125
-FSVAL.600002
-FSVAL.610001
-PAVAL.100117
-PIVAL.200127
-PIVAL.200128
-TWVAL.200127
-YOVAL.200127
-YOVAL.600001
-```
-
-## Entity Resolution Codes
-These are passed if present for the profile and have the following format:
-
-__[2 uppercase alpha]v[2 uppercase alpha.[6 numeric]__
-
-#### Examples
-```
-FMvPI.email
-FMvPI.mobilenumber
-FMvPI.name
-```
-
-## Field Validation Codes
-These are passed if present for the profile and have the following format:
-
-__FV.[address|email|name|companyname|userid|ipaddress|nationalid|dob|mobilenumber]__
-
-#### Examples
-```
-FV.address
-FV.email
-FV.mobilenumber
-FV.name
-```
-
-## Reason Codes
-These are passed if present for the profile and have the following format:
-
-__[I|R|E|V][3 numeric]__
-
-#### Examples
-```
-E101
-I100
-I101
-I102
-I230
-I232
-I233
-I240
-I241
-I242
-I243
-R140
-R141
-R150
-R151
-R435
-V101
-V102
-V103
-V116
-```
 
 # Docker
 A Dockerfile can be used to create a fraudscore server image.
@@ -445,7 +200,6 @@ zip fraudscore.zip Dockerfile fraudscore.R rapache.conf RSourceOnStartup.R fraud
   adding: model/transferwise__20150507.rds (deflated 0%)
 ```
 
-Currently __LogStash__ is not enabled within the __fraudscore__ service image. Once deployed, the running application can only be monitored by connecting to each __EC2__ worker instance and connecting to the Docker container:
 
 ```shell
 $ ssh ec2-54-92-162-114.compute-1.amazonaws.com
@@ -479,12 +233,14 @@ INFO [2015-06-22 18:24:14] [17] Starting web service
 Docker can be used on OSX by using __Boot2Docker__, a purpose-built virtual machine and associated utility scripts.
 
 * Create a new __Boot2Docker__ VM. This only needs to be done once:
-```shell
+
+```
 $ boot2docker init
 ```
 
 * Start the __Boot2Docker__ VM:
-```shell
+
+```
 $ boot2docker start
 Waiting for VM and Docker daemon to start...
 .o
@@ -500,7 +256,8 @@ To connect the Docker client to the Docker daemon, please set:
 ```
 
 * Display the environment variables for the Docker client:
-```shell
+
+```
 $ boot2docker shellinit
 Writing /Users/jkamerman/.boot2docker/certs/boot2docker-vm/ca.pem
 Writing /Users/jkamerman/.boot2docker/certs/boot2docker-vm/cert.pem
@@ -511,7 +268,8 @@ Writing /Users/jkamerman/.boot2docker/certs/boot2docker-vm/key.pem
 ```
 
 * To set the environment variables in your shell do the following:
-```shell
+
+```
 $ eval "$(boot2docker shellinit)"
 Writing /Users/jkamerman/.boot2docker/certs/boot2docker-vm/ca.pem
 Writing /Users/jkamerman/.boot2docker/certs/boot2docker-vm/cert.pem
@@ -519,7 +277,8 @@ Writing /Users/jkamerman/.boot2docker/certs/boot2docker-vm/key.pem
 ```
 
 * Run the hello-world container to verify your setup.
-```shell
+
+```
 $ docker run hello-world
 Unable to find image 'hello-world:latest' locally
 latest: Pulling from hello-world
@@ -535,7 +294,8 @@ This message shows that your installation appears to be working correctly.
 ```
 
 * Use the IP address of the __Boot2Docker__ VM to test the application:
-```shell
+
+```
 $ echo $DOCKER_HOST
 tcp://192.168.59.103:2376
 $ curl --data $(cat test/test.post) http://192.168.59.103/fraudscore/generic/20150527
