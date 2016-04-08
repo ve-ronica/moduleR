@@ -60,10 +60,12 @@ are the steps for deploying the service on _Ubuntu Server_:
 
 1. Install _apache2_ and _rapache_:
 
-        $ sudo apt-get install apache2
-        $ sudo add-apt-repository ppa:opencpu/rapache
-        $ sudo apt-get update
-        $ sudo apt-get install libapache2-mod-r-base
+```
+$ sudo apt-get install apache2
+$ sudo add-apt-repository ppa:opencpu/rapache
+$ sudo apt-get update
+$ sudo apt-get install libapache2-mod-r-base
+```
 
 2. Install _R_ modules _Rook_, and dependencies.
 
@@ -72,7 +74,9 @@ are the steps for deploying the service on _Ubuntu Server_:
 4. Configure _httpd_ by linking `rapache.conf` into the configuration
    directory:
 
-        $ sudo ln -s rapache.conf /etc/apache2/sites/enabled
+```
+$ sudo ln -s rapache.conf /etc/apache2/sites/enabled
+```
 
 5. Edit settings in `rapache.conf` to point to the socure
     implementation files and set the number of required workers
@@ -82,24 +86,21 @@ are the steps for deploying the service on _Ubuntu Server_:
 
 6. Restart _httpd_:
 
-        $ sudo service apache2 restart
+```
+$ sudo service apache2 restart
+```
 
 7. Test _rapache_ configuration
    [here](http://ec2-54-198-90-184.compute-1.amazonaws.com/RApacheInfo)
 
 8. Test _fraudscore_ service via `curl`:
 
-        $ curl --data $(cat test.post) http://ec2-54-198-90-184.compute-1.amazonaws.com/fraudscore/g
-        {"score":0.063879240865568,"status":"Ok","error":""}
+```
+$ curl --data 'x1=1&x2=2&x3=3' http://127.0.0.1:8000/custom/predict/test/1
+{"score":{"1":12.9322980080557},"status":"Ok","error":"","name":"test","version":1}
+```
 
-9. Test _fraudscore_ service via `test.py`:
 
-        $ ./test.py -u http://ec2-54-198-90-184.compute-1.amazonaws.com/fraudscore
-        2014-06-18 13:35:56,295 [MainThread] DEBUG Getting fraudscore for customeruserid 2                           
-        2014-06-18 13:35:56,719 [MainThread] INFO Starting new HTTP connection (1): ec2-54-198-90-184.compute-1.amazonaws.com 
-        2014-06-18 13:35:57,288 [MainThread] DEBUG "POST /fraudscore HTTP/1.1" 200 58
-        2014-06-18 13:35:57,348 [MainThread] DEBUG Received response from URL http://ec2-54-198-90-184.compute-1.amazonaws.com/fraudscore in 0:00:00.596513: {"fraudscore":0.0221298229539805,"status":"Ok","error":""}
-        ...
 
 ##Debugging
 The service writes to various log files that can be used to asses the
