@@ -25,17 +25,12 @@ curl --data 'x1=1&x2=2&x3=3' http://192.168.99.100/predict/test/1
 
 ## Rook Testing
 A standalone Rook service implementation is provided in
-`fraudscoreRook.R` and can be run without Apache httpd as follows:
+__src/predictRook.R__ and can be run without Apache httpd as follows:
 
-1. Copy model file socure\_model\_predictor.rda to this
-directory..it's too big for GitHub.
-
-2. Start webservice and wait for model to be loaded. Current version of
-Rook will only bind to localhost but we can proxy with Apache and
-possibly deploy multiple instances of the web service on different
-ports:
+* Start webservice:
 
 ```
+$ src/predictRook.R 
 Loading required package: Rook
 Loading required package: rjson
 Loading required package: futile.logger
@@ -51,7 +46,7 @@ DEBUG [2016-04-08 11:50:20] [45109] Using prediction features: x1,x2,x3
 DEBUG [2016-04-08 11:50:20] Request (http://127.0.0.1:8000/custom/predict/test/1?) returns: {"score":{"1":12.9322980080557},"status":"Ok","error":"","name":"test","version":1}
 ```
 
-3. Test the application:
+* Test the service:
 
 ```
 $ curl --data 'x1=1&x2=2&x3=3' http://127.0.0.1:8000/custom/predict/test/1
@@ -251,6 +246,9 @@ INFO [2015-06-22 18:24:14] [17] Starting web service
 ```
 
 ## Using Docker on OSX
+
+__TODO: update to DockerMachine__
+
 Docker can be used on OSX by using __Boot2Docker__, a purpose-built virtual machine and associated utility scripts.
 
 * Create a new __Boot2Docker__ VM. This only needs to be done once:
