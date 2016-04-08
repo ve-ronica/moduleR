@@ -1,6 +1,26 @@
 # ModuleR Prediction Web Service
 
 ## Quickstart
+Build container, start, and run test. First image build will take some time as Docker downloads the base Ubuntu image. Subsequent builds will use much quicker:
+
+```
+$ make clean image run && sleep 10 && make test
+docker kill rapache && docker rm rapache
+rapache
+rapache
+docker build -t myrepo/predict-service:latest .
+Sending build context to Docker daemon 365.6 kB
+Step 1 : FROM ubuntu
+ ---> b549a9959a66
+ ....
+ 
+Successfully built eb7446fb1c90
+docker run -d --name rapache -p 80:80 myrepo/predict-service:latest
+c69975971c4df33272ffac7110af190f52efaad397751779ed7580e57c3d2e47
+
+curl --data 'x1=1&x2=2&x3=3' http://192.168.99.100/predict/test/1
+{"score":{"1":12.9322980080557},"status":"Ok","error":"","name":"test","version":1,"date":null}
+```
 
 
 ## Rook Testing
