@@ -11,7 +11,7 @@ MAINTAINER Socure "support@socure.me"
 
 ################## BEGIN INSTALLATION ######################
 RUN apt-get update
-RUN apt-get upgrade
+
 
 # Install RApache module
 RUN apt-get install -y software-properties-common
